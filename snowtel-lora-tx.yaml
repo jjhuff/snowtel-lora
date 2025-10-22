@@ -1,0 +1,183 @@
+esphome:
+  name: snowtel-tx
+
+external_components:
+  - source: github://mrtoy-me/esphome-vl53l1x@main
+    components: [vl53l1x]
+    refresh: 0s
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+# Enable logging
+logger:
+  hardware_uart: "UART0"
+
+# Enable Home Assistant API
+#api:
+#  encryption:
+#    key: "92/2lYJSpWxIRv9y/MoDn7CL+IxgTWYoHRHr/UTAK5A="
+
+ota:
+  - platform: esphome
+    password: ""
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  output_power: 8.5dB
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Snowtel-Lora Fallback Hotspot"
+    password: ""
+
+preferences:
+  flash_write_interval: 10min
+
+captive_portal:
+web_server:
+#  local: true
+
+i2c:
+  - id: bus_a # Display
+    sda: 17
+    scl: 18
+  - id: bus_b # Sensors
+    scan: true
+    sda: 41
+    scl: 42
+    frequency: 100kHz
+
+spi:
+  clk_pin: GPIO9
+  mosi_pin: GPIO10
+  miso_pin: GPIO11
+
+sensor:
+  - platform: mlx90614
+    i2c_id: bus_b
+    update_interval: 1s
+    ambient:
+      id: ambient_temp
+      name: Ambient
+    object:
+      id: object_temp
+      name: Object
+      emissivity: 0.98 # ~Snow
+
+  - platform: vl53l1x
+    i2c_id: bus_b
+    distance_mode: long
+    distance:
+      name: Raw Distance
+      id: raw_distance
+    range_status:
+      name: Range Status
+      id: range_status
+    update_interval: 1s
+
+  - platform: template
+    name: Distance
+    id: distance
+    device_class: "distance"
+    state_class: "measurement"
+    unit_of_measurement: "mm"
+    accuracy_decimals: 0
+    lambda: |-
+      if (id(range_status).state > 0) {
+        return NAN;
+      } else {
+        return id(raw_distance).state;
+      }
+    update_interval: 1s
+
+  - platform: adc
+    id: battery_voltage_raw
+    update_interval: never
+    pin: GPIO1
+
+  - platform: template
+    id: battery_voltage
+    name: "Battery Voltage"
+    accuracy_decimals: 2
+    device_class: "voltage"
+    state_class: "measurement"
+    unit_of_measurement: "V"
+    update_interval: 30s
+    filters:
+      - multiply: 4.9 # voltage divider 390/100
+    lambda: |-
+      id(adc_ctl).turn_on();
+      delay(100);
+      float adc = id(battery_voltage_raw).sample();
+      id(adc_ctl).turn_off();
+      return adc;
+
+switch:
+  - platform: gpio
+    id: adc_ctl
+    internal: true
+    pin:
+      number: GPIO37
+      inverted: true
+
+sx126x:
+  dio1_pin: GPIO14
+  cs_pin: GPIO8
+  busy_pin: GPIO13
+  rst_pin: GPIO12
+  pa_power: 14
+  bandwidth: 125_0kHz
+  crc_enable: true
+  frequency: 915000000
+  modulation: LORA
+  hw_version: sx1262
+  rf_switch: true
+  sync_value: [0x14, 0x24]
+  preamble_size: 8
+  spreading_factor: 7
+  coding_rate: CR_4_5
+  tcxo_voltage: 1_8V
+  tcxo_delay: 5ms
+
+packet_transport:
+  platform: sx126x
+  sensors:
+    - object_temp
+    - ambient_temp
+    - distance
+    - battery_voltage
+
+font:
+  # gfonts://family[@weight]
+  #  - file: "gfonts://Roboto+Mono"
+  - file: "gfonts://Nova+Mono"
+    id: roboto_16
+    size: 16
+  - file: "gfonts://Roboto"
+    id: roboto_10
+    size: 10
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    reset_pin: 21
+    i2c_id: bus_a
+    address: 0x3C
+    # auto_clear_enabled: false
+    lambda: |-
+      it.print(0,  2, id(roboto_10), "Object");
+      it.printf(0, 10, id(roboto_16), "%5.1f", id(object_temp).state);
+
+      it.print(0, 32, id(roboto_10), "Ambient");
+      it.printf(0, 40, id(roboto_16), "%5.1f", id(ambient_temp).state);
+
+      it.print(80,  2, id(roboto_10), "Distance");
+      it.printf(80, 10, id(roboto_16), "%5.0f", id(distance).state);
+
+      it.print(80, 32, id(roboto_10), "Battery");
+      it.printf(80, 40, id(roboto_16), "%5.1f", id(battery_voltage).state);
