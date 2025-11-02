@@ -1,24 +1,34 @@
 esphome:
   name: snowtel-tx
+  platformio_options:
+    board_build.flash_mode: dio
+  on_boot:
+    priority: 1000
+    then:
+      - logger.log: "Enabling VEXT"
+      - output.turn_on: vext_ctl
 
 external_components:
+  - source:
+      type: local
+      path: my_components
   - source: github://mrtoy-me/esphome-vl53l1x@main
     components: [vl53l1x]
     refresh: 0s
 
 esp32:
-  board: esp32-s3-devkitc-1
+  board: esp32-s3-devkitc-1 #heltec_wifi_lora_32_V3 #esp32-s3-devkitc-1
+  #variant: ESP32S3
   framework:
     type: esp-idf
 
+psram:
+  mode: quad
+  speed: 80MHz
+
 # Enable logging
 logger:
-  hardware_uart: "UART0"
-
-# Enable Home Assistant API
-#api:
-#  encryption:
-#    key: "92/2lYJSpWxIRv9y/MoDn7CL+IxgTWYoHRHr/UTAK5A="
+  #hardware_uart: "UART0"
 
 ota:
   - platform: esphome
@@ -40,16 +50,19 @@ preferences:
 
 captive_portal:
 web_server:
+  include_internal: true
 #  local: true
 
+#deep_sleep:
+#  run_duration: 30s
+#  sleep_duration: 1min
+#  id: deep_sleep_1
+
 i2c:
-  - id: bus_a # Display
-    sda: 17
-    scl: 18
   - id: bus_b # Sensors
     scan: true
-    sda: 41
-    scl: 42
+    sda: GPIO41
+    scl: GPIO42
     frequency: 100kHz
 
 spi:
@@ -60,25 +73,25 @@ spi:
 sensor:
   - platform: mlx90614
     i2c_id: bus_b
-    update_interval: 1s
+    update_interval: 5s
     ambient:
       id: ambient_temp
-      name: Ambient
+      name: "Temp: Ambient"
     object:
       id: object_temp
-      name: Object
+      name: "Temp: Object"
       emissivity: 0.98 # ~Snow
 
   - platform: vl53l1x
     i2c_id: bus_b
     distance_mode: long
+    update_interval: 5s
     distance:
       name: Raw Distance
       id: raw_distance
     range_status:
       name: Range Status
       id: range_status
-    update_interval: 1s
 
   - platform: template
     name: Distance
@@ -87,16 +100,17 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: "mm"
     accuracy_decimals: 0
+    update_interval: 5s
     lambda: |-
       if (id(range_status).state > 0) {
         return NAN;
       } else {
         return id(raw_distance).state;
       }
-    update_interval: 1s
 
   - platform: adc
     id: battery_voltage_raw
+    internal: true
     update_interval: never
     pin: GPIO1
 
@@ -117,13 +131,46 @@ sensor:
       id(adc_ctl).turn_off();
       return adc;
 
+binary_sensor:
+  - platform: packet_transport
+    provider: snowtel-rx
+    id: ota_mode
+    remote_id: remote_ota
+    trigger_on_initial_state: true # To ensure OTA state is correct on boot
+    on_state:
+      - lambda: |-
+          if (x) {
+            id(led).turn_on();
+            //id(deep_sleep_1).prevent_deep_sleep();
+          } else {
+            id(led).turn_off();
+            //id(deep_sleep_1).allow_deep_sleep();
+          }
+
 switch:
   - platform: gpio
     id: adc_ctl
     internal: true
     pin:
       number: GPIO37
-      inverted: true
+      inverted: false
+
+output:
+  - id: led_output
+    platform: ledc
+    pin: GPIO35
+  - id: vext_ctl
+    platform: gpio
+    pin:
+      number: GPIO36
+      inverted: false
+
+light:
+  - platform: monochromatic
+    name: "LED"
+    id: led
+    output: led_output
+    internal: true
 
 sx126x:
   dio1_pin: GPIO14
@@ -151,33 +198,3 @@ packet_transport:
     - ambient_temp
     - distance
     - battery_voltage
-
-font:
-  # gfonts://family[@weight]
-  #  - file: "gfonts://Roboto+Mono"
-  - file: "gfonts://Nova+Mono"
-    id: roboto_16
-    size: 16
-  - file: "gfonts://Roboto"
-    id: roboto_10
-    size: 10
-
-display:
-  - platform: ssd1306_i2c
-    model: "SSD1306 128x64"
-    reset_pin: 21
-    i2c_id: bus_a
-    address: 0x3C
-    # auto_clear_enabled: false
-    lambda: |-
-      it.print(0,  2, id(roboto_10), "Object");
-      it.printf(0, 10, id(roboto_16), "%5.1f", id(object_temp).state);
-
-      it.print(0, 32, id(roboto_10), "Ambient");
-      it.printf(0, 40, id(roboto_16), "%5.1f", id(ambient_temp).state);
-
-      it.print(80,  2, id(roboto_10), "Distance");
-      it.printf(80, 10, id(roboto_16), "%5.0f", id(distance).state);
-
-      it.print(80, 32, id(roboto_10), "Battery");
-      it.printf(80, 40, id(roboto_16), "%5.1f", id(battery_voltage).state);

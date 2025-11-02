@@ -12,9 +12,7 @@ logger:
   level: DEBUG
 
 # Enable Home Assistant API
-#api:
-#  encryption:
-#    key: "92/2lYJSpWxIRv9y/MoDn7CL+IxgTWYoHRHr/UTAK5A="
+api:
 
 ota:
   - platform: esphome
@@ -40,13 +38,9 @@ web_server:
 #  local: true
 
 i2c:
-  - id: bus_a
-    sda: 17
-    scl: 18
-  - id: bus_b
-    scan: true
-    sda: 41
-    scl: 42
+  - id: bus_a # Display
+    sda: GPIO17
+    scl: GPIO18
 
 spi:
   clk_pin: GPIO9
@@ -106,6 +100,11 @@ sensor:
       id(adc_ctl).turn_off();
       return adc;
 
+binary_sensor:
+  - platform: switch
+    id: remote_ota
+    source_id: remote_ota_switch
+
 switch:
   - platform: gpio
     id: adc_ctl
@@ -115,18 +114,36 @@ switch:
       inverted: true
 
   - platform: gpio
-    id: led
-    internal: true
-    pin: 35
-
-  - platform: gpio
     id: vext_ctl
     internal: true
     pin:
-      number: 36
+      number: GPIO36
       inverted: true
       mode:
         output: true
+
+  - platform: template
+    name: "Remote OTA"
+    id: remote_ota_switch
+    optimistic: true
+
+output:
+  - id: led_output
+    platform: ledc
+    pin: GPIO35
+
+light:
+  - platform: monochromatic
+    name: "LED"
+    id: led
+    output: led_output
+    internal: true
+    effects:
+      - strobe:
+    on_turn_on:
+      - light.turn_on:
+          id: led
+          effect: strobe
 
 sx126x:
   dio1_pin: GPIO14
@@ -149,6 +166,9 @@ sx126x:
 
 packet_transport:
   platform: sx126x
+  update_interval: 5s
+  binary_sensors:
+    - remote_ota
 
 font:
   # gfonts://family[@weight]
