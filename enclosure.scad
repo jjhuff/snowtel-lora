@@ -1,6 +1,6 @@
 size_x = 110;
-size_y = 55;
-box_h = 45;
+size_y = 45;
+box_h = 40;
 box_wall = 4;
 
 //size_z = 10;
@@ -10,7 +10,7 @@ screw_r = 1.5;
 include<mountingClamp.scad>;
 
 clampWidth = 20;
-shaftDiameter = 40; //31; //25.4 ;
+shaftDiameter = 33; //25.4 ;
 
 module pyramid(top_x,top_y, base_x, base_y, h) {
         polyhedron(
@@ -157,12 +157,13 @@ module box(height, wall) {
 }
 
 module heltec_v4() {
-    pcb_thickness=2;
+    pcb_thickness=1;
     pcb_w=26;
     pcb_l=50;
-    translate([-pcb_l/2, -pcb_w/2, 0]) {
+    conn_thickness=4;
+    translate([-pcb_l/2, -pcb_w/2, -pcb_thickness]) {
         cube([pcb_l, pcb_w, pcb_thickness]);
-        translate([-5,5/2,-pcb_thickness]) cube([pcb_l+10,(pcb_w-5),6]);
+        translate([-5,5/2, -conn_thickness]) cube([pcb_l+10,(pcb_w-5), conn_thickness+pcb_thickness]);
     }
 }
 
@@ -172,16 +173,15 @@ module lid(thickness) {
         cube([size_x, size_y, thickness]);
       }
      
-      translate([35,8, thickness]) {
+      translate([35, 9, thickness]) {
          rotate([0,0,-90]) gy906();
       }
-      translate([35, -8, thickness]) {
+      translate([35, -9, thickness]) {
         rotate([0,0,0]) vlx53L1x(thickness);
       }
-      translate([-10, 0, thickness-1]) {
+      translate([-10, 0, thickness]) {
         heltec_v4();
       }
-      
     }
 }
 
@@ -203,7 +203,7 @@ module screw_holes(wall) {
 }
 
 // Render lid
-//translate([0, -30, 0]) {
+/*translate([0, -30, 0]) {
   difference() {
     lid(8);
     translate([0,0, 5]) {
@@ -212,10 +212,10 @@ module screw_holes(wall) {
     }
     screw_holes(box_wall);
   }
-//}
+}*/
 
 // Render case
-/*translate([0, 30, 0]) {
+translate([0, 30, 0]) {
   difference() {
     box(box_h, box_wall);
     
@@ -227,6 +227,8 @@ module screw_holes(wall) {
     rotate([0,90,0])
     cylinder(15, 6.5, 6.5, center=true);
   }
-}*/
+}
+
+//heltec_v4();
 
 //vlx53L1x(8);

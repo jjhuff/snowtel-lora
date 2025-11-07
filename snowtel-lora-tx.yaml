@@ -35,10 +35,12 @@ ota:
     password: ""
 
 wifi:
+  id: wificomp
   ssid: !secret wifi_ssid
   password: !secret wifi_password
   fast_connect: true
   output_power: 8.5dB
+  enable_on_boot: false
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
@@ -53,10 +55,10 @@ web_server:
   include_internal: true
 #  local: true
 
-#deep_sleep:
-#  run_duration: 30s
-#  sleep_duration: 1min
-#  id: deep_sleep_1
+deep_sleep:
+  run_duration: 20s
+  sleep_duration: 1min
+  id: deep_sleep_1
 
 i2c:
   - id: bus_b # Sensors
@@ -85,7 +87,7 @@ sensor:
   - platform: vl53l1x
     i2c_id: bus_b
     distance_mode: long
-    update_interval: 5s
+    update_interval: 10s
     distance:
       name: Raw Distance
       id: raw_distance
@@ -100,13 +102,18 @@ sensor:
     state_class: "measurement"
     unit_of_measurement: "mm"
     accuracy_decimals: 0
-    update_interval: 5s
+    update_interval: 1s
     lambda: |-
       if (id(range_status).state > 0) {
         return NAN;
       } else {
         return id(raw_distance).state;
       }
+    filters:
+      - median:
+          window_size: 15
+          send_every: 15
+          send_first_at: 15
 
   - platform: adc
     id: battery_voltage_raw
@@ -138,13 +145,18 @@ binary_sensor:
     remote_id: remote_ota
     trigger_on_initial_state: true # To ensure OTA state is correct on boot
     on_state:
+      - logger.log:
+          format: "OTA Mode: %s"
+          args: ['x ? "ON" : "OFF"']
       - lambda: |-
           if (x) {
-            id(led).turn_on();
-            //id(deep_sleep_1).prevent_deep_sleep();
+            id(deep_sleep_1).prevent_deep_sleep();
+            id(wificomp).enable();
+            id(led).turn_on().set_brightness(0.5).perform();
           } else {
-            id(led).turn_off();
-            //id(deep_sleep_1).allow_deep_sleep();
+            id(deep_sleep_1).allow_deep_sleep();
+            id(wificomp).disable();
+            id(led).turn_off().perform();
           }
 
 switch:
