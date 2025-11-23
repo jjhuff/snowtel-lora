@@ -7,6 +7,8 @@ esphome:
     then:
       - logger.log: "Enabling VEXT"
       - output.turn_on: vext_ctl
+      - lambda: |-
+          delay(100); // Wait for VEXT to stabilize
 
 external_components:
   - source:
