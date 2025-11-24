@@ -11,12 +11,15 @@ esphome:
           delay(100); // Wait for VEXT to stabilize
 
 external_components:
-  - source:
-      type: local
-      path: my_components
+  #  - source:
+  #      type: local
+  #      path: my_components
   - source: github://mrtoy-me/esphome-vl53l1x@main
     components: [vl53l1x]
-    refresh: 0s
+    refresh: 1h
+  - source: github://pr#6689
+    components: [mlx90614]
+    refresh: 1h
 
 esp32:
   board: esp32-s3-devkitc-1 #heltec_wifi_lora_32_V3 #esp32-s3-devkitc-1
@@ -64,10 +67,11 @@ deep_sleep:
 
 i2c:
   - id: bus_b # Sensors
-    scan: true
+    scan: false
     sda: GPIO41
     scl: GPIO42
     frequency: 100kHz
+    timeout: 100ms
 
 spi:
   clk_pin: GPIO9
