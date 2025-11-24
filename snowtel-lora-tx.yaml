@@ -81,14 +81,32 @@ spi:
 sensor:
   - platform: mlx90614
     i2c_id: bus_b
-    update_interval: 5s
+    update_interval: 1s
     ambient:
       id: ambient_temp
       name: "Temp: Ambient"
+      filters:
+        - clamp:
+            min_value: -30
+            max_value: 45
+            ignore_out_of_range: true
+        - median:
+            window_size: 15
+            send_every: 15
+            send_first_at: 15
     object:
       id: object_temp
       name: "Temp: Object"
       emissivity: 0.98 # ~Snow
+      filters:
+        - clamp:
+            min_value: -30
+            max_value: 45
+            ignore_out_of_range: true
+        - median:
+            window_size: 15
+            send_every: 15
+            send_first_at: 15
 
   - platform: vl53l1x
     i2c_id: bus_b
